@@ -10,7 +10,7 @@ from ship import Ship
 from bullet import Bullet
 from alien import Alien
 from star import Star
-from  random import randint
+from random import randint
 
 
 class Alieninvasion:
@@ -218,7 +218,8 @@ class Alieninvasion:
         alien = Alien(self)
         #alien_width = alien.rect.width
         alien_width, alien_height = alien.rect.size
-        alien.y = alien_width + 2 * alien_width * alien_number
+        #alien.y = alien_width + 2 * alien_width * alien_number
+        alien.y = alien.rect.height + 2 * alien.rect.height * row_number
         alien.rect.y = alien.y
         alien.rect.x = self.settings.screen_width - (2 * alien_width * alien_number) - 3 * alien_width
         self.aliens.add(alien)
