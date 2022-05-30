@@ -11,7 +11,9 @@ class GameStats:
         # 让游戏一开始处于非活动状态
         self.game_active = False
         # 任何情况下都不应重置最高得分
-        self.high_score = 0
+        #self.high_score = 0
+        # 读取文件最高得分。
+        self.read_high_score()
 
 
     def reset_stats(self):
@@ -19,3 +21,23 @@ class GameStats:
         self.ships_left = self.settings.ship_limit
         self.score = 0
         self.level = 1
+
+    def save_high_score(self):
+        """将最高分保存在high_score文件中"""
+        high_score_str = str(self.high_score)
+        filename = 'high_score.txt'
+        with open(filename, 'w') as file_object:
+            file_object.write(high_score_str)
+
+    def read_high_score(self):
+        """
+        读取high_score文件中保存的最高得分
+        如果没有记录，则最高分为0
+        """
+        filename = 'high_score.txt'
+        try:
+            with open(filename) as file_object:
+                contents = file_object.read()
+            self.high_score = int(contents)
+        except FileNotFoundError:
+            self.high_score = 0

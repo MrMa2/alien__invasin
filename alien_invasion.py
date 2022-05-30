@@ -9,6 +9,8 @@ from button import Button
 from ship import Ship
 from bullet import Bullet
 from alien import Alien
+from star import Star
+from  random import randint
 
 
 class Alieninvasion:
@@ -23,22 +25,33 @@ class Alieninvasion:
         # self.screen = pygame.display.set_mode((1200, 800))
         # 设置背景色
         # self.bg_color = (230, 230, 230)
+        # 全屏运行游戏
         self.screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+        # 获取屏幕宽度
         self.settings.screen_width = self.screen.get_rect().width
+        # 获取屏幕高度
         self.settings.screen_height = self.screen.get_rect().height
         #self.screen = pygame.display.set_mode(
             #(self.settings.screen_width, self.settings.screen_height))
+        #设置窗口标题
         pygame.display.set_caption("Alien Invasion")
 
         # 创建一个用于存储游戏统计信息的实例
         self.stats = GameStats(self)
 
-        # 创建存储游戏统计信息的实例，并创建记分牌
+        # 并创建记分牌
         self.sb = Scoreboard(self)
 
+        #将飞船绘制到屏幕
         self.ship = Ship(self)
+
+        #初始化群组
         self.bullets = pygame.sprite.Group() # 用于存储子弹的编组
         self.aliens = pygame.sprite.Group() # 存储外星人群的编组
+        self.stars = pygame.sprite.Group()
+
+        #绘制星星背景
+        self._create_starry()
 
         self._create_fleet()
 
@@ -76,7 +89,8 @@ class Alieninvasion:
         # 响应鼠标和键盘事件
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                sys.exit()
+                #sys.exit()
+                self._end_game()
             # 控制飞船移动，同时按下左右箭头飞船不移动
             elif event.type == pygame.KEYDOWN:  # 按下按键
                 self._check_keydown_events(event)
@@ -131,8 +145,12 @@ class Alieninvasion:
             self.ship.moving_right = True  # 向右移动飞船
         elif event.key == pygame.K_LEFT:  # 按下左箭头
             self.ship.moving_left = True  # 向左移动飞船
+        elif event.key == pygame.K_UP:# 持续向上
+            self.ship.moving_up = True
+        elif event.key == pygame.K_DOWN:# 持续向下
+            self.ship.moving_down = True
         elif event.key == pygame.K_q:   # 按Q键结束游戏
-            sys.exit()
+            self._end_game()
         elif event.key == pygame.K_SPACE:   # 按下空格键
             self._fire_bullet() # 调用_fire_bullet()
 
@@ -145,6 +163,10 @@ class Alieninvasion:
             self.ship.moving_right = False  # 停止移动
         elif event.key == pygame.K_LEFT:  # 松开左箭头
             self.ship.moving_left = False  # 停止移动
+        elif event.key == pygame.K_UP:# 停止向上
+            self.ship.moving_up = False
+        elif event.key == pygame.K_DOWN:# 停止向下
+            self.ship.moving_down = False
 
 
 
@@ -165,18 +187,18 @@ class Alieninvasion:
         alien = Alien(self)
         #alien_width = alien.rect.width
         alien_width, alien_height = alien.rect.size
-        available_space_x = self.settings.screen_width - (2 * alien_width)
-        number_aliens_x = available_space_x // (2 * alien_width)
+        available_space_y = self.settings.screen_width - (2 * alien_width)
+        number_aliens_y = available_space_y // (3 * alien_width)
 
         # 计算屏幕可以容纳多少行外星人
         ship_height = self.ship.rect.height
-        available_space_y = (self.settings.screen_height -
-                             (3 * alien_height) - ship_height)
-        number_rows = available_space_y // (2 * alien_height)
+        available_space_x = (self.settings.screen_height -
+                             alien_height + ship_height)
+        number_rows = available_space_x // (2 * alien_height)
 
         # 创建外星人群
         for row_number in range(number_rows):
-            for alien_number in range(number_aliens_x):
+            for alien_number in range(number_aliens_y):
                 self._create_alien(alien_number, row_number)
 
         # 创建第一行外星人
@@ -196,9 +218,9 @@ class Alieninvasion:
         alien = Alien(self)
         #alien_width = alien.rect.width
         alien_width, alien_height = alien.rect.size
-        alien.x = alien_width + 2 * alien_width * alien_number
-        alien.rect.x = alien.x
-        alien.rect.y = alien.rect.height + 2 * alien.rect.height * row_number
+        alien.y = alien_width + 2 * alien_width * alien_number
+        alien.rect.y = alien.y
+        alien.rect.x = self.settings.screen_width - (2 * alien_width * alien_number) - 3 * alien_width
         self.aliens.add(alien)
 
 
@@ -217,7 +239,7 @@ class Alieninvasion:
     def _change_fleet_direction(self):
         """将整群外星人下移，并改变它们的方向"""
         for alien in self.aliens.sprites():
-            alien.rect.y += self.settings.fleet_drop_speed
+            alien.rect.x -= self.settings.fleet_drop_speed
         self.settings.fleet_direction *= -1
 
 
@@ -231,7 +253,8 @@ class Alieninvasion:
 
         # 删除消失的子弹
         for bullet in self.bullets.copy():
-            if bullet.rect.bottom <= 0:  # 检查子弹是否从屏幕顶端消失
+            #if bullet.rect.bottom <= 0:  # 检查子弹是否从屏幕顶端消失
+            if bullet.rect.right >= self.ship.screen_rect.right:
                 self.bullets.remove(bullet)  # 删除子弹
 
         self._check_bullet_alien_collisions()
@@ -251,35 +274,25 @@ class Alieninvasion:
         # 删除发生碰撞的子弹和外星人
         collisions = pygame.sprite.groupcollide(
             self.bullets, self.aliens, True, True)
+        # 有外星人被击落，更新得分
         if collisions:
             for aliens in collisions.values():
                 self.stats.score += self.settings.alien_points * len(aliens)
             #self.stats.score += self.settings.alien_points
             self.sb.prep_score()
             self.sb.check_high_score()
-            self.sb.prep_level()
+            #self.sb.prep_level()
 
         if not self.aliens:
             # 删除现有的子弹并新建一群外星人
             self.bullets.empty()
+            self.ship.center_ship()
             self._create_fleet()
             self.settings.increase_speed()
 
             # 提高等级
             self.stats.level += 1
             self.sb.prep_level()
-
-
-
-
-    def _check_aliens_bottom(self):
-        """检查是否有外星人到达了屏幕底端"""
-        screen_rect = self.screen.get_rect()
-        for alien in self.aliens.sprites():
-            if alien.rect.bottom >= screen_rect.bottom:
-                # 像飞船被撞到一样处理
-                self._ship_hit()
-                break
 
 
 
@@ -296,8 +309,20 @@ class Alieninvasion:
         if pygame.sprite.spritecollideany(self.ship, self.aliens):
             #print("Ship hit!!!")
             self._ship_hit()
-        # 检查是否有外星人到达屏幕底端
+        # 检查是否有外星人到达屏幕左边边缘
         self._check_aliens_bottom()
+
+
+
+
+    def _check_aliens_bottom(self):
+        """检查是否有外星人到达了屏幕左边边缘"""
+        screen_rect = self.screen.get_rect()
+        for alien in self.aliens.sprites():
+            if alien.rect.left <= screen_rect.left:
+                # 像飞船被撞到一样处理
+                self._ship_hit()
+                break
 
 
 
@@ -328,11 +353,12 @@ class Alieninvasion:
             self.bullets.empty()
 
             # 创建一群新的外星人，并将飞船放到屏幕底端的中央
-            self._create_fleet()
             self.ship.center_ship()
+            self._create_fleet()
 
             # 暂停
             sleep(0.5)
+        # 终止游戏
         else:
             self.stats.game_active = False
             pygame.mouse.set_visible(True)# 重新显示光标
@@ -350,6 +376,8 @@ class Alieninvasion:
         for bullet in self.bullets.sprites():
             bullet.draw_bullet()
         self.aliens.draw(self.screen)
+        self.stars.draw(self.screen)
+
 
         # 显示得分
         self.sb.show_score()
@@ -359,6 +387,46 @@ class Alieninvasion:
             self.play_button.draw_button()
         # 让最近绘制的屏幕可见
         pygame.display.flip()
+
+
+
+    def _create_starry(self):
+        """ 创建星群 """
+        # 创建一个星星并计算一行可容纳多少个星星
+        star = Star(self)
+        star_width, star_height = star.rect.size
+        # 屏幕x方向左右各预留一个星星宽度
+        self.availiable_space_x = self.screen.get_rect().width - (2 * star_width)
+        # 星星的间距为星星宽度的4倍
+        number_stars_x = self.availiable_space_x // (5 * star_width) + 1
+
+        # 计算屏幕可容纳多少行星星
+        # 屏幕y方向上下各预留一个星星宽度
+        self.availiable_space_y = self.screen.get_rect().height - (2 * star_height)
+        # 星星的间距为星星高度的4倍
+        number_rows = self.availiable_space_y // (5 * star_height) + 1
+
+        # 创建星群
+        for row_number in range(number_rows):
+            for star_number in range(number_stars_x):
+                self._create_star(star_number, row_number)
+
+
+
+    def _create_star(self, star_number, row_number):
+        # 创建一个星星并将其加入到当前行
+        star = Star(self)
+        star.rect.x = randint(0, self.availiable_space_x)
+        star.rect.y = randint(0, self.availiable_space_y)
+        self.stars.add(star)
+
+
+
+    def _end_game(self):
+        """保存最高分数记录并关闭游戏"""
+        self.stats.save_high_score()
+        sys.exit()
+
 
 
 if __name__ == '__main__':
